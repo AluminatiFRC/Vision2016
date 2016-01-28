@@ -5,7 +5,7 @@ class RealtimeInterval:
     interval = 0
 
     def __init__(self, intervalInSeconds):
-        startTime = time.time()
+        self.startTime = time.time()
         self.interval = intervalInSeconds
 
     def start(self):
