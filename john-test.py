@@ -25,7 +25,7 @@ def findLargestContour(source):
         ordered = sorted(contours, key = cv2.contourArea, reverse = True)[:1]
         return ordered[0]
 
-params = { "hue": 111, "hueWidth": 8 }#, "gray": 80}
+params = { "hue": 111, "hueWidth": 8, "FOV": 13782}#, "gray": 80}
 
 def mkAdjuster(name):
     def adjust(value):
@@ -34,13 +34,14 @@ def mkAdjuster(name):
 
 control = "sliders"
 cv2.namedWindow(control);
+
 for param in params:
     if param == "hue":
         cv2.createTrackbar(param,control,params[param],179,mkAdjuster(param))
     if param == "hueWidth":
         cv2.createTrackbar(param,control,params[param],20,mkAdjuster(param))
     else:
-        cv2.createTrackbar(param,control,params[param],255,mkAdjuster(param))
+        cv2.createTrackbar(param,control,params[param],50000,mkAdjuster(param))
 
 camera = cv2.VideoCapture(0)
 #camera.set(cv2.cv.CV_CAP_PROP_FPS, 15)
@@ -76,6 +77,11 @@ while (True):
                 hull = cv2.convexHull(largestContour)
                 for i in range(hull.shape[0]-1):
                     cv2.line(result, tuple(hull[i][0]), tuple(hull[i+1][0]), (255, 255, 0), 2)
+            x,y,w,h = cv2.boundingRect(largestContour)
+            cv2.rectangle(result, (x,y), (x+w,y+h), (40,0,120), 2)
+            tPx = w
+            distance = params["FOV"]/w
+            cv2.putText(result, str(distance), (30, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0,0,0), 1)
 
         cv2.imshow("result", result)
     
