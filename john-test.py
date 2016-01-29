@@ -63,8 +63,7 @@ while (True):
                 cy = int(M["m01"]/M["m00"])
                 cv2.circle(result, (cx, cy), 8, (250, 250, 250), -1)
                 hull = cv2.convexHull(largestContour)
-                for i in range(hull.shape[0]-1):
-                    cv2.line(result, tuple(hull[i][0]), tuple(hull[i+1][0]), (255, 255, 0), 2)
+                cv2.drawContours(result, [hull], 0, (0,255,0), 3)
             x,y,w,h = cv2.boundingRect(largestContour)
             cv2.rectangle(result, (x,y), (x+w,y+h), (40,0,120), 2)
             tPx = w
