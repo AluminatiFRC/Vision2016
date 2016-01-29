@@ -1,5 +1,6 @@
 from WeightedFramerateCounter import WeightedFramerateCounter
 from RealtimeInterval import RealtimeInterval
+from CVParameterGroup import CVParameterGroup
 import numpy as np
 import cv2
 
@@ -25,23 +26,10 @@ def findLargestContour(source):
         ordered = sorted(contours, key = cv2.contourArea, reverse = True)[:1]
         return ordered[0]
 
-params = { "hue": 111, "hueWidth": 8, "FOV": 13782}#, "gray": 80}
-
-def mkAdjuster(name):
-    def adjust(value):
-        params[name] = value
-    return adjust
-
-control = "sliders"
-cv2.namedWindow(control);
-
-for param in params:
-    if param == "hue":
-        cv2.createTrackbar(param,control,params[param],179,mkAdjuster(param))
-    if param == "hueWidth":
-        cv2.createTrackbar(param,control,params[param],20,mkAdjuster(param))
-    else:
-        cv2.createTrackbar(param,control,params[param],50000,mkAdjuster(param))
+params = CVParameterGroup("Sliders")
+params.addParameter("hue", 111, 255)
+params.addParameter("hueWidth", 2, 25)
+params.addParameter("FOV", 13782, 50000)
 
 camera = cv2.VideoCapture(0)
 #camera.set(cv2.cv.CV_CAP_PROP_FPS, 15)
