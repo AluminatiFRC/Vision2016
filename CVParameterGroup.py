@@ -4,6 +4,7 @@ class CVParameterGroup:
     def __init__(self, windowName):
         self.windowName = windowName
         cv2.namedWindow(windowName)
+        cv2.resizeWindow(windowName,420,420)
         
     def addParameter(self, name, defaultValue, maxValue):
         cv2.createTrackbar(name, self.windowName, defaultValue, maxValue, lambda x: None)
