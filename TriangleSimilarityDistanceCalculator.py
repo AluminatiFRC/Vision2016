@@ -1,5 +1,10 @@
 # Calculate the distance to an object of known size.
 # We need to know the perceived focal length for this to work.
+#
+# Known Focal Length values for calibrated cameras
+#   Logitech C920:              620
+#   Microsoft Lifecam HD-3000:  ???
+#
 class TriangleSimilarityDistanceCalculator:
     knownSize = 0
     focalLength = 0;
