@@ -26,13 +26,24 @@ def findLargestContour(source):
     if len(contours) > 0:
         ordered = sorted(contours, key = cv2.contourArea, reverse = True)[:1]
         return ordered[0]
-
+    
+def clickHandler(event, x, y, flags, param):
+    global points, boxSource
+    
+    if event == cv2.EVENT_LBUTTONDOWN:
+        if points < 4:
+            boxSource[points] = (x, y)
+            points += 1
+    elif event == cv2.EVENT_RBUTTONDOWN:
+        points = 0
+    
 params = CVParameterGroup("Sliders")
-params.addParameter("hue", 75, 255)
-params.addParameter("hueWidth", 4, 25)
+params.addParameter("hue", 107, 255)
+params.addParameter("hueWidth", 7, 25)
 params.addParameter("FOV", 13782, 50000)
-params.addParameter("low", 90, 255)
+params.addParameter("low", 134, 255)
 params.addParameter("high", 255, 255)
+params.addParameter("keystone", 0, 640/2)
 camera = cv2.VideoCapture(0)
 #No camera's exposure goes this low, but this will set it as low as possible
 camera.set(cv2.cv.CV_CAP_PROP_EXPOSURE,-100)
@@ -40,21 +51,33 @@ camera.set(cv2.cv.CV_CAP_PROP_EXPOSURE,-100)
 #camera.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 640)
 #camera.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 480)
 
+objHeight = 10.5;
+objWidth = 14.0;
+objAspect = objWidth / objHeight
+
 fpsDisplay = False;
 fpsCounter = WeightedFramerateCounter()
 fpsInterval = RealtimeInterval(3.0)
-raw = cv2.imread("testImages/1454372914.52.png")
+raw = cv2.imread("1454660931.58.png")
 targetSize = (20, 14)
+
+points = 4
+boxSource = [[0, 0], [640, 0], [640, 480], [0, 480]]
+
+cv2.namedWindow("result")
+#cv2.setMouseCallback("result", clickHandler)
+
 while (True):
-    #ret, raw = camera.read()
+    ret, raw = camera.read()
     
     ret = True
     if ret:
         fpsCounter.tick()
         
-        #cv2.imshow("raw", raw)
+        cv2.imshow("raw", raw)
         
         mask = filterHue(raw)
+        
         cv2.imshow("mask", mask)
 
         #colorOnly = cv2.bitwise_and(raw, raw, mask = mask)
@@ -71,16 +94,51 @@ while (True):
 ##                cv2.circle(result, (cx, cy), 8, (250, 250, 250), -1)
 ##                hull = cv2.convexHull(largestContour)
 ##                cv2.drawContours(result, [hull], 0, (0,255,0), 3)
+            
+            rect = cv2.minAreaRect(largestContour)
+            box = cv2.cv.BoxPoints(rect);
+            box = np.int0(box);
+            cv2.drawContours(result, [box], 0, (0, 192, 0), 2)           
+            #cv2.drawContours(result, [largestContour], 0, (0, 127, 127), 2)           
+
+            hull = cv2.convexHull(largestContour)
+            cv2.drawContours(result, [hull], 0, (127, 0, 255), 2)
+
             x,y,w,h = cv2.boundingRect(largestContour)
             center = (x+(w/2), y+(h/2))
             cv2.rectangle(result, (x,y), (x+w,y+h), (40,0,120), 2)
-            cv2.circle(result, center, 8, (250, 250, 250), -1)
-            cv2.putText(result, str(center[0]-320), (x-50, y+15), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,0,0), 1)
-            cv2.putText(result, str(center[1]-240), (x-50, y+45), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,0,0), 1)
-##            tPx = w
-##            distance = params["FOV"]/w
-##            cv2.putText(result, str(distance), (30, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0,0,0), 1)
 
+            if points == 4:
+                width = 640;
+                height = 480;
+
+##                ptSrc = np.float32([boxSource[:3]]);
+##                ptDst = np.float32([[params['keystone'], 0], [width-params['keystone'], 0], [width+params['keystone'], height]]);
+##                amatrix = cv2.getAffineTransform(ptSrc, ptDst)
+##                transformed = cv2.warpAffine(raw, amatrix, (width, height))
+##                cv2.imshow("transformed", transformed)
+                
+                ptSrc = np.float32([boxSource]);
+                ptDst = np.float32([[params['keystone'], 0], [width-params['keystone'], 0], [width + params['keystone'], height], [-params['keystone'], height]]);
+                matrix = cv2.getPerspectiveTransform(ptSrc, ptDst)
+                transformed = cv2.warpPerspective(raw, matrix, (int(width), int(height)))
+                cv2.imshow("transformed", transformed)
+#            else:
+#                for i in range(points):
+#                    cv2.circle(result, boxSource[i], 2, (255, 255, 255), 1)
+                    
+##            if points == 4:
+##                width = 400;
+##                height = width * objAspect;
+##                ptSrc = np.float32([boxSource]);
+##                ptDst = np.float32([[0, 0], [width, 0], [width, height], [0, height]]);
+##                matrix = cv2.getPerspectiveTransform(ptSrc, ptDst)
+##                transformed = cv2.warpPerspective(raw, matrix, (int(width), int(height)))
+##                cv2.imshow("transformed", transformed)
+##            else:
+##                for i in range(points):
+##                    cv2.circle(result, boxSource[i], 2, (255, 255, 255), 1)
+            
         cv2.imshow("result", result)
     
     if fpsDisplay and fpsInterval.hasElapsed():
