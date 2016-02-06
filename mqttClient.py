@@ -24,7 +24,6 @@ class MqttClient:
         self.__isConnecting = True
         print "Trying to connect to the MQTT broker at: {}:{}".format(self.__host, self.__port)
         threading.Thread(target=self.__connectAsync).start()
-        return;
 
     def publish(self, topic, payload):
         self.__pahoClient.publish(topic, payload)    
@@ -95,4 +94,5 @@ def sampleCode():
         
     client.disconnect()
 
-#sampleCode()
+if __name__ == '__main__':
+    sampleCode()

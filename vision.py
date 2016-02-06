@@ -71,7 +71,7 @@ def main():
 
     params = CVParameterGroup("Sliders", debugMode)
     # HUES: GREEEN=65/75 BLUE=110
-    params.addParameter("hue", 65, 179)
+    params.addParameter("hue", 75, 179)
     params.addParameter("hueWidth", 5, 25)
     params.addParameter("low", 70, 255)
     params.addParameter("high", 255, 255)       
@@ -91,7 +91,7 @@ def main():
     fpsInterval = RealtimeInterval(5.0)
 
     while (True):
-        if not client.isConnected() and connectThrottle.hasElapsed():
+        if (not client.isConnected()) and connectThrottle.hasElapsed():
             try:
                 client.connect()
             except:
@@ -108,7 +108,7 @@ def main():
 
             target = findTarget(raw, params)
             if target == None or not target.any():
-                payload = { 'hasTarget': False, "fps": fpsCounter.getFramerate() }
+                payload = { 'hasTarget': False, "fps": round(fpsCounter.getFramerate()) }
                 client.publish(MQTT_TOPIC_TARGETTING, json.dumps(payload))
             else:
                 x,y,w,h = cv2.boundingRect(target)
@@ -118,7 +118,7 @@ def main():
                 distance = None
                 perceivedFocalLengthH = perceivedFocalLengthV = 0.0
                 if tuneDistance:
-                    perceivedFocalLengthH = distanceCalculatorH.CalculatePerceivedFocalLengthAtGivenDistance(w  , TARGET_CALIBRATION_DISTANCE);
+                    perceivedFocalLengthH = distanceCalculatorH.CalculatePerceivedFocalLengthAtGivenDistance(w, TARGET_CALIBRATION_DISTANCE);
                     perceivedFocalLengthV = distanceCalculatorV.CalculatePerceivedFocalLengthAtGivenDistance(h, TARGET_CALIBRATION_DISTANCE);
                     distance = TARGET_CALIBRATION_DISTANCE
                 else:
@@ -129,7 +129,7 @@ def main():
                         distance = distanceCalculatorV.CalcualteDistance(h);
                 distance = round(distance, 1)
 
-                payload = { 'horizDelta': horizontalOffset, 'targetDistance': int(distance), 'hasTarget': True, "fps": fpsCounter.getFramerate() }
+                payload = { 'horizDelta': horizontalOffset, 'targetDistance': rounddistance), 'hasTarget': True, "fps": round(fpsCounter.getFramerate()) }
                 client.publish(MQTT_TOPIC_TARGETTING, json.dumps(payload))
 
                 if debugMode:
