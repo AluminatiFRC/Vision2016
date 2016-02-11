@@ -15,10 +15,10 @@ class MqttClient:
         self.__pahoClient.on_message = self.on_message
         #self.userdata = userdata
         self.messageHandler = messageHandler
-        self.__pahoClient.loop_start()
 
     def connect(self):
         try:
+            self.__pahoClient.loop_start()
             self.__pahoClient.connect(self.__host, self.__port)
         except socket.gaierror as error:
             print("Not able to resolve the requested host name: " + self.__host)
