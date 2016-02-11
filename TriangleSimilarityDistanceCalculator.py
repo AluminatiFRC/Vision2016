@@ -2,8 +2,8 @@
 # We need to know the perceived focal length for this to work.
 #
 # Known Focal Length values for calibrated cameras
-#   Logitech C920:              620
-#   Microsoft Lifecam HD-3000:  ???
+#   Logitech C920:              H620 V?
+#   Microsoft Lifecam HD-3000:  H652 V?
 #
 class TriangleSimilarityDistanceCalculator:
     knownSize = 0
