@@ -15,9 +15,7 @@ class MqttClient:
         self.__pahoClient.on_message = self.on_message
         #self.userdata = userdata
         self.messageHandler = messageHandler
-
         self.__pahoClient.loop_start()
-        self.connect()
 
     def connect(self):
         try:
@@ -35,6 +33,9 @@ class MqttClient:
             print "Unhandled error " + str(sys.exc_info()[0])
             raise
 
+    def publish(self, topic, payload):
+        self.__pahoClient.publish(topic, payload)    
+
     def isConnected(self):
         return self.__isConnected
     
@@ -43,7 +44,7 @@ class MqttClient:
             self.__pahoClient.disconnect()
 
     def on_connect(self, client, userdata, _, resultCode):
-        print "Connected to MQQT broker with result code: " + str(resultCode)
+        print "Connected to MQTT broker with result code: " + str(resultCode)
         if resultCode == 0:
             self.__isConnected = True
             for topic in self.__topics:
@@ -66,8 +67,10 @@ def sampleCode():
         #print message.topic
         #print message.payload
 
-    host = "iot.eclipse.org"
-    port = 1883
+    #host = "iot.eclipse.org"
+    #port = 1883
+    host = "roboRIO-5495-FRC.local"
+    port = 5888
     topics = ("$SYS/#")
     client = MqttClient(host, port, topics, messageHandler)
 
