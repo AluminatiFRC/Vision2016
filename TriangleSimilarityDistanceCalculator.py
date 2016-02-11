@@ -2,9 +2,15 @@
 # We need to know the perceived focal length for this to work.
 #
 # Known Focal Length values for calibrated cameras
-#   Logitech C920:              H620 V?
+#   Logitech C920:              H622 V625
 #   Microsoft Lifecam HD-3000:  H652 V?
 #
+
+PFL_H_C920 = 622
+PFL_V_C920 = 625
+PFL_H_LC3000 = 652
+PFL_V_LC3000 = 652
+
 class TriangleSimilarityDistanceCalculator:
     knownSize = 0
     focalLength = 0;
@@ -15,8 +21,8 @@ class TriangleSimilarityDistanceCalculator:
 
     # Call this to calibrate a camera and then use the calibrated focalLength value
     # when using this class to calculate real distances.
-    def CalculatePerceivedFOVAtGivenDistance(self, perceivedSize, distance):
-        focalLength = perceivedSize * distance / float(self.knownSize)
+    def CalculatePerceivedFocalLengthAtGivenDistance(self, perceivedSize, knownDistance):
+        focalLength = perceivedSize * knownDistance / float(self.knownSize)
         return focalLength
 
     # This will return the real world distance of the known object.
