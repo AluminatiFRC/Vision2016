@@ -12,18 +12,17 @@ import json
 
 debugMode = False
 
-
-
 def filterHue(source):
+    MAX_HUE = 179
     hsv = cv2.cvtColor(source, cv2.COLOR_BGR2HSV)
     x = params["hue"] - params["hueWidth"]
     if x < 0:
-         x = 0
+         x = MAX_HUE - (MAX_HUE % x)
     low = np.array([x, params["low"], params["low"]])
 
     x = params["hue"] + params["hueWidth"]
-    if x > 179:
-         x = 179
+    if x > MAX_HUE:
+         x = MAX_HUE % x
     high = np.array([x, params["high"], params["high"]])
 
     mask = cv2.inRange(hsv, low, high)
