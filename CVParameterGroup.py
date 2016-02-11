@@ -26,4 +26,4 @@ class CVParameterGroup:
             height = 76
         else:
             height = self.paramCount * 19
-        cv2.resizeWindow(self.windowName, 420, height)
+        cv2.resizeWindow(self.windowName, 500, height)
