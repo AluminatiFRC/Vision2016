@@ -80,4 +80,5 @@ def sampleCode():
         
     client.disconnect()
 
-#sampleCode()
+if __name__ == "__main__":
+    sampleCode()
