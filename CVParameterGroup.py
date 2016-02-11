@@ -26,5 +26,4 @@ class CVParameterGroup:
             height = 76
         else:
             height = self.paramCount * 19
-        print "Params: {} Height:{}".format(self.paramCount, height)
         cv2.resizeWindow(self.windowName, 420, height)
