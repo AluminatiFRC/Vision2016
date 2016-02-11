@@ -49,7 +49,7 @@ def createCamera():
     return camera
 
 ##
-## This should take a raw BGR image and determine if it contains the target we are looking for
+## This takes a raw BGR image and determines if it contains the target we are looking for.
 ##
 def findTarget(raw, params): 
     mask = filterHue(raw, params["hue"], params["hueWidth"], params["low"], params["high"])
@@ -62,6 +62,7 @@ def findTarget(raw, params):
             return largestContour
 
 def main():
+    connectThrottle = RealtimeInterval(10)
     MQTT_TOPIC_TARGETTING = "5495.targetting"
     host = "roboRIO-5495-FRC.local"
     port = 5888
@@ -73,7 +74,7 @@ def main():
     params.addParameter("hue", 65, 179)
     params.addParameter("hueWidth", 5, 25)
     params.addParameter("low", 70, 255)
-    params.addParameter("high", 255, 255)
+    params.addParameter("high", 255, 255)       
     params.addParameter("countourSize", 50, 200)
 
     camera = createCamera()
@@ -90,9 +91,9 @@ def main():
     fpsInterval = RealtimeInterval(5.0)
 
     while (True):
-        if not client.isConnected() :
+        if not client.isConnected() and connectThrottle.hasElapsed():
             try:
-                None#client.connect()
+                client.connect()
             except:
                 None
         
@@ -101,9 +102,11 @@ def main():
             fpsCounter.tick()
 
             if debugMode:
+                if fpsDisplay:
+                    cv2.putText(raw, "{:.0f} fps".format(fpsCounter.getFramerate()), (640 - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
                 cv2.imshow("raw", raw);
 
-            contour = findTarget(raw, params)
+            target = findTarget(raw, params)
             if target == None or not target.any():
                 payload = { 'hasTarget': False, "fps": fpsCounter.getFramerate() }
                 client.publish(MQTT_TOPIC_TARGETTING, json.dumps(payload))
@@ -115,7 +118,7 @@ def main():
                 distance = None
                 perceivedFocalLengthH = perceivedFocalLengthV = 0.0
                 if tuneDistance:
-                    perceivedFocalLengthH = distanceCalculatorH.CalculatePerceivedFocalLengthAtGivenDistance(w, TARGET_CALIBRATION_DISTANCE);
+                    perceivedFocalLengthH = distanceCalculatorH.CalculatePerceivedFocalLengthAtGivenDistance(w  , TARGET_CALIBRATION_DISTANCE);
                     perceivedFocalLengthV = distanceCalculatorV.CalculatePerceivedFocalLengthAtGivenDistance(h, TARGET_CALIBRATION_DISTANCE);
                     distance = TARGET_CALIBRATION_DISTANCE
                 else:
@@ -152,9 +155,11 @@ def main():
         elif keyPress == ord("q"):
             break 
         elif keyPress == ord("z"):
-            cv2.imwrite(str(time.time()) + ".png", raw)
-            print "Took screenshot"
+            filename = str(time.time()) + ".png"
+            cv2.imwrite(filename, raw)
+            print "Took screenshot " + filename
 
+    client.disconnect()
     camera.release()
     cv2.destroyAllWindows()
 
