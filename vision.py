@@ -71,7 +71,7 @@ def main():
 
     params = CVParameterGroup("Sliders", debugMode)
     # HUES: GREEEN=65/75 BLUE=110
-    params.addParameter("hue", 75, 179)
+    params.addParameter("hue", 68, 179)
     params.addParameter("hueWidth", 5, 25)
     params.addParameter("low", 70, 255)
     params.addParameter("high", 255, 255)       
@@ -90,6 +90,10 @@ def main():
     fpsCounter = WeightedFramerateCounter()
     fpsInterval = RealtimeInterval(5.0)
 
+    # The first frame we take off of the camera won't have the proper exposure setting
+    # We need to skip the first frame to make sure we don't process bad image data.
+    frameSkipped = False;
+
     while (True):
         if (not client.isConnected()) and connectThrottle.hasElapsed():
             try:
@@ -98,9 +102,9 @@ def main():
                 None
         
         ret, raw = camera.read()
-        if ret:
+        if ret and frameSkipped:
             fpsCounter.tick()
-
+            
             if debugMode:
                 if fpsDisplay:
                     cv2.putText(raw, "{:.0f} fps".format(fpsCounter.getFramerate()), (640 - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
@@ -129,7 +133,7 @@ def main():
                         distance = distanceCalculatorV.CalcualteDistance(h);
                 distance = round(distance, 1)
 
-                payload = { 'horizDelta': horizontalOffset, 'targetDistance': rounddistance), 'hasTarget': True, "fps": round(fpsCounter.getFramerate()) }
+                payload = { 'horizDelta': horizontalOffset, 'targetDistance': round(distance), 'hasTarget': True, "fps": round(fpsCounter.getFramerate()) }
                 client.publish(MQTT_TOPIC_TARGETTING, json.dumps(payload))
 
                 if debugMode:
@@ -145,7 +149,8 @@ def main():
                     if fpsDisplay:
                         cv2.putText(result, "{:.0f} fps".format(fpsCounter.getFramerate()), (640 - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
                     cv2.imshow("result", result)
-
+        if ret:
+           frameSkipped = True 
         if fpsDisplay and fpsInterval.hasElapsed():
             print "{0:.1f} fps".format(fpsCounter.getFramerate())
         
