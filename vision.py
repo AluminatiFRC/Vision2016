@@ -9,8 +9,9 @@ import cv2
 import time
 import mqttClient
 import json
+import CameraReaderAsync
 
-debugMode = True
+debugMode = False
 
 tuneDistance = False and debugMode
 
@@ -78,6 +79,7 @@ def main():
     params.addParameter("countourSize", 50, 200)
 
     camera = createCamera()
+    cameraReader = CameraReaderAsync.CameraReaderAsync(camera)
     distanceCalculatorH = distanceCalculatorV  = None
     if tuneDistance:
         distanceCalculatorH = DistanceCalculator.TriangleSimilarityDistanceCalculator(TARGET_WIDTH)
@@ -101,8 +103,8 @@ def main():
             except:
                 None
         
-        ret, raw = camera.read()
-        if ret and frameSkipped:
+        raw = cameraReader.Read()
+        if raw != None and frameSkipped:
             fpsCounter.tick()
             
             if debugMode:
@@ -149,7 +151,7 @@ def main():
                     if fpsDisplay:
                         cv2.putText(result, "{:.0f} fps".format(fpsCounter.getFramerate()), (640 - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
                     cv2.imshow("result", result)
-        if ret:
+        if raw != None:
            frameSkipped = True 
         if fpsDisplay and fpsInterval.hasElapsed():
             print "{0:.1f} fps".format(fpsCounter.getFramerate())
@@ -165,6 +167,7 @@ def main():
             print "Took screenshot " + filename
 
     client.disconnect()
+    cameraReader.Stop()
     camera.release()
     cv2.destroyAllWindows()
 

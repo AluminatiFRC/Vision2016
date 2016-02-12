@@ -2,7 +2,7 @@ from threading import Thread
 
 class CameraReaderAsync:
     def __init__(self, videoSource):
-        self.__source = camera
+        self.__source = videoSource
         self.Start()
         
     def __ReadAsync(self):
@@ -26,7 +26,7 @@ class CameraReaderAsync:
     # Return a frame if we have a new frame since this was last called.
     # If there is no frame or if the frame is not new, return None.
     def Read(self):
-        if not self.__validFrame || self.__lastFrameRead:
+        if not self.__validFrame or self.__lastFrameRead:
             return None
 
         self.__lastFrameRead = True
