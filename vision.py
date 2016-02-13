@@ -27,6 +27,8 @@ TARGET_CALIBRATION_DISTANCE = 67
 TARGET_WIDTH = COMPETITION_TARGET_WIDTH
 TARGET_HEIGHT = COMPETITION_TARGET_HEIGHT
 
+cameraFrameWidth = None
+
 def filterHue(source, hue, hueWidth, low, high):
     MAX_HUE = 179
     hsv = cv2.cvtColor(source, cv2.COLOR_BGR2HSV)
@@ -45,11 +47,14 @@ def messageHandler(message):
     #print message.payload
 
 def createCamera():
+    global cameraFrameWidth
+    
     camera = cv2.VideoCapture(0)
     #No camera's exposure goes this low, but this will set it as low as possible
     camera.set(cv2.cv.CV_CAP_PROP_EXPOSURE,-100)    
     #camera.set(cv2.cv.CV_CAP_PROP_FPS, 15)
     #camera.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 640)
+    cameraFrameWidth = camera.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
     #camera.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 480)
     return camera
 
@@ -130,17 +135,17 @@ def main():
     # We need to skip the first frame to make sure we don't process bad image data.
     frameSkipped = False;
 
-    raw = cv2.imread('test.png')
-    cv2.imshow("raw", raw);
+    #raw = cv2.imread('test.png')
+    #cv2.imshow("raw", raw);
 
     while (True):
         if (not client.isConnected()) and connectThrottle.hasElapsed():
             try:
-                None#client.connect()
+                client.connect()
             except:
                 None
         
-        #raw = cameraReader.Read()
+        raw = cameraReader.Read()
         if raw != None and frameSkipped:
             fpsCounter.tick()
             
@@ -174,7 +179,8 @@ def main():
                     distance = distanceCalculatorV.CalculateDistance(measuredHeight);
                 distance = round(distance, 1)
 
-                payload = { 'horizDelta': horizontalOffset, 'targetDistance': round(distance), 'hasTarget': True, "fps": round(fpsCounter.getFramerate()) }
+                horizDelta1 = horizontalOffset / cameraFrameWidth * 2 - 1
+                payload = { 'horizDelta': horizDelta, 'targetDistance': round(distance), 'hasTarget': True, "fps": round(fpsCounter.getFramerate()) }
                 client.publish(MQTT_TOPIC_TARGETTING, json.dumps(payload))
 
                 if debugMode:
@@ -197,21 +203,23 @@ def main():
                     if fpsDisplay:
                         cv2.putText(result, "{:.0f} fps".format(fpsCounter.getFramerate()), (640 - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
                     cv2.imshow("result", result)
-                    raw = None
+                    
         if raw != None:
-           frameSkipped = True 
+            frameSkipped = True
         if fpsDisplay and fpsInterval.hasElapsed():
             print "{0:.1f} fps".format(fpsCounter.getFramerate())
-        
+    
         keyPress = cv2.waitKey(1)
-        if keyPress == ord("f"):
-            fpsDisplay = not fpsDisplay
-        elif keyPress == ord("q"):
-            break 
-        elif keyPress == ord("z"):
-            filename = str(time.time()) + ".png"
-            cv2.imwrite(filename, raw)
-            print "Took screenshot " + filename
+        if keyPress != -1:
+            keyPress = keyPress & 0xFF
+            if keyPress == ord("f"):
+                fpsDisplay = not fpsDisplay
+            elif keyPress == ord("q"):
+                break 
+            elif keyPress == ord("z"):
+                filename = str(time.time()) + ".png"
+                cv2.imwrite(filename, raw)
+                print "Took screenshot " + filename
 
     client.disconnect()
     cameraReader.Stop()
