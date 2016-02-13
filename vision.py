@@ -43,7 +43,7 @@ def messageHandler(message):
 def createCamera():
     camera = cv2.VideoCapture(0)
     #No camera's exposure goes this low, but this will set it as low as possible
-    camera.set(cv2.cv.CV_CAP_PROP_EXPOSURE,-100)    
+    #camera.set(cv2.cv.CV_CAP_PROP_EXPOSURE,-100)    
     #camera.set(cv2.cv.CV_CAP_PROP_FPS, 15)
     #camera.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 640)
     #camera.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 480)
@@ -88,9 +88,9 @@ def main():
         distanceCalculatorH = DistanceCalculator.TriangleSimilarityDistanceCalculator(TARGET_WIDTH, DistanceCalculator.PFL_H_LC3000)
         distanceCalculatorV = DistanceCalculator.TriangleSimilarityDistanceCalculator(TARGET_HEIGHT, DistanceCalculator.PFL_V_LC3000)
     
-    fpsDisplay = False;
+    fpsDisplay = True;
     fpsCounter = WeightedFramerateCounter()
-    fpsInterval = RealtimeInterval(5.0)
+    fpsInterval = RealtimeInterval(5.0, False)
 
     # The first frame we take off of the camera won't have the proper exposure setting
     # We need to skip the first frame to make sure we don't process bad image data.
@@ -154,17 +154,19 @@ def main():
         if raw != None:
            frameSkipped = True 
         if fpsDisplay and fpsInterval.hasElapsed():
-            print "{0:.1f} fps".format(fpsCounter.getFramerate())
-        
-        keyPress = cv2.waitKey(1)
-        if keyPress == ord("f"):
-            fpsDisplay = not fpsDisplay
-        elif keyPress == ord("q"):
-            break 
-        elif keyPress == ord("z"):
-            filename = str(time.time()) + ".png"
-            cv2.imwrite(filename, raw)
-            print "Took screenshot " + filename
+            print "{0:.1f} fps (processing)".format(fpsCounter.getFramerate())
+            print "{0:.1f} fps (camera)".format(cameraReader.fps.getFramerate())
+
+        if debugMode:
+            keyPress = cv2.waitKey(1)
+            if keyPress == ord("f"):
+                fpsDisplay = not fpsDisplay
+            elif keyPress == ord("q"):
+                break 
+            elif keyPress == ord("z"):
+                filename = str(time.time()) + ".png"
+                cv2.imwrite(filename, raw)
+                print "Took screenshot " + filename
 
     client.disconnect()
     cameraReader.Stop()
@@ -172,7 +174,7 @@ def main():
     cv2.destroyAllWindows()
 
 parser = argparse.ArgumentParser(description="Vision-based targetting system for FRC 2016")
-parser.add_argument("--release", dest="releaseMode", action="store_const", const=True, default=False, help="hides all debug windows (default: False)")
+parser.add_argument("--release", dest="releaseMode", action="store_const", const=True, default=not debugMode, help="hides all debug windows (default: False)")
 args = parser.parse_args()
 debugMode = not args.releaseMode
 main()
