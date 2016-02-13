@@ -180,7 +180,7 @@ def main():
                     distance = distanceCalculatorV.CalculateDistance(measuredHeight);
                 distance = round(distance, 1)
 
-                horizDelta = horizontalOffset / cameraFrameWidth * 2 - 1
+                horizDelta = horizontalOffset / cameraFrameWidth * 2
                 payload = { 'horizDelta': horizDelta, 'targetDistance': round(distance), 'hasTarget': True, "fps": round(fpsCounter.getFramerate()) }
                 client.publish(MQTT_TOPIC_TARGETTING, json.dumps(payload))
 
@@ -234,4 +234,5 @@ parser = argparse.ArgumentParser(description="Vision-based targetting system for
 parser.add_argument("--release", dest="releaseMode", action="store_const", const=True, default=not debugMode, help="hides all debug windows (default: False)")
 args = parser.parse_args()
 debugMode = not args.releaseMode
+
 main()
