@@ -1,3 +1,4 @@
+import argparse
 import sys
 import paho.mqtt.client as mqtt
 from WeightedFramerateCounter import WeightedFramerateCounter
@@ -11,8 +12,7 @@ import mqttClient
 import json
 import CameraReaderAsync
 
-debugMode = False
-
+debugMode = True
 tuneDistance = False and debugMode
 
 BLUECASE_WIDTH = 14
@@ -171,4 +171,8 @@ def main():
     camera.release()
     cv2.destroyAllWindows()
 
+parser = argparse.ArgumentParser(description="Vision-based targetting system for FRC 2016")
+parser.add_argument("--release", dest="releaseMode", action="store_const", const=True, default=False, help="hides all debug windows (default: False)")
+args = parser.parse_args()
+debugMode = not args.releaseMode
 main()
