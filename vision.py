@@ -29,6 +29,7 @@ TARGET_WIDTH = COMPETITION_TARGET_WIDTH
 TARGET_HEIGHT = COMPETITION_TARGET_HEIGHT
 
 cameraFrameWidth = None
+cameraFrameHeight = None
 
 def filterHue(source, hue, hueWidth, low, high):
     MAX_HUE = 179
@@ -49,14 +50,16 @@ def messageHandler(message):
 
 def createCamera():
     global cameraFrameWidth
+    global cameraFrameHeight
     
     camera = cv2.VideoCapture(0)
     #No camera's exposure goes this low, but this will set it as low as possible
     #camera.set(cv2.cv.CV_CAP_PROP_EXPOSURE,-100)    
     #camera.set(cv2.cv.CV_CAP_PROP_FPS, 15)
     #camera.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 640)
-    cameraFrameWidth = camera.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
     #camera.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT, 480)
+    cameraFrameWidth = int(camera.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH))
+    cameraFrameHeight = int(camera.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT))
     return camera
 
 ##
@@ -117,6 +120,7 @@ def main():
     params.addParameter("low", 70, 255)
     params.addParameter("high", 255, 255)       
     params.addParameter("countourSize", 50, 200)
+    params.addParameter("keystone", 0, 320)
 
     camera = createCamera()
     cameraReader = CameraReaderAsync.CameraReaderAsync(camera)
@@ -132,12 +136,11 @@ def main():
     fpsCounter = WeightedFramerateCounter()
     fpsInterval = RealtimeInterval(5.0, False)
 
+    keyStoneBoxSource = [[0, 0], [cameraFrameWidth, 0], [cameraFrameWidth, cameraFrameHeight], [0, cameraFrameHeight]]
+
     # The first frame we take off of the camera won't have the proper exposure setting
     # We need to skip the first frame to make sure we don't process bad image data.
     frameSkipped = False
-
-    #raw = cv2.imread('test.png')
-    #cv2.imshow("raw", raw);
 
     while (True):
         if (not client.isConnected()) and connectThrottle.hasElapsed():
@@ -145,17 +148,34 @@ def main():
                 client.connect()
             except:
                 None
-        
+
+        # This code will load a test image from disk and process it instead of the camera input
+        #raw = cv2.imread('test.png')
+        #frameSkipped = True
+        #if raw == None or len(raw) == 0:
+        #    print "Can't load image"
+        #    break
         raw = cameraReader.Read()
         if raw != None and frameSkipped:
             fpsCounter.tick()
             
             if debugMode:
                 if fpsDisplay:
-                    cv2.putText(raw, "{:.0f} fps".format(fpsCounter.getFramerate()), (640 - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
+                    cv2.putText(raw, "{:.0f} fps".format(fpsCounter.getFramerate()), (cameraFrameWidth - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
                 cv2.imshow("raw", raw)
 
+            # This will "deskew" or fix the keystone of a tilted camera.
+            #ptSrc = np.float32([keyStoneBoxSource]);
+            #ptDst = np.float32([[params['keystone'], 0],\
+            #                    [cameraFrameWidth - params['keystone'], 0],\
+            #                    [cameraFrameWidth + params['keystone'], cameraFrameHeight],\
+            #                    [-params['keystone'], cameraFrameHeight]]);
+            #matrix = cv2.getPerspectiveTransform(ptSrc, ptDst)
+            #transformed = cv2.warpPerspective(raw, matrix, (cameraFrameWidth, cameraFrameHeight))
+            #cv2.imshow("keystone", transformed)
+            #target = findTarget(transformed, params)
             target = findTarget(raw, params)
+            
             if target == None or not target.any():
                 payload = { 'hasTarget': False, "fps": round(fpsCounter.getFramerate()) }
                 client.publish(MQTT_TOPIC_TARGETTING, json.dumps(payload))
@@ -166,7 +186,7 @@ def main():
                 measuredHeight, centerLine = getTargetHeight(targetBox)
                 center = (round((centerLine[0][0] + centerLine[1][0]) / 2),\
                           round((centerLine[0][1] + centerLine[1][1]) / 2))
-                horizontalOffset = center[0] - 320
+                horizontalOffset = center[0] - (cameraFrameWidth / 2.0)
                 
                 perceivedFocalLengthH = perceivedFocalLengthV = 0.0
                 if tuneDistance:
@@ -204,7 +224,7 @@ def main():
                     if fpsDisplay:
                         cv2.putText(result, "{:.0f} fps".format(fpsCounter.getFramerate()), (640 - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
                     cv2.imshow("result", result)
-                    
+
         if raw != None:
             frameSkipped = True
         if fpsDisplay and fpsInterval.hasElapsed():
