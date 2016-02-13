@@ -1,16 +1,16 @@
 import argparse
-import sys
-import paho.mqtt.client as mqtt
-from WeightedFramerateCounter import WeightedFramerateCounter
-from RealtimeInterval import RealtimeInterval
-from CVParameterGroup import CVParameterGroup
-import TriangleSimilarityDistanceCalculator as DistanceCalculator
-import numpy as np
-import cv2
-import time
-import mqttClient
-import json
 import CameraReaderAsync
+import cv2
+import json
+import mqttClient
+import numpy as np
+import paho.mqtt.client as mqtt
+import sys
+import time
+import TriangleSimilarityDistanceCalculator as DistanceCalculator
+from CVParameterGroup import CVParameterGroup
+from RealtimeInterval import RealtimeInterval
+from WeightedFramerateCounter import WeightedFramerateCounter
 
 debugMode = True
 tuneDistance = False and debugMode
