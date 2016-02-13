@@ -26,7 +26,7 @@ class TriangleSimilarityDistanceCalculator:
         return focalLength
 
     # This will return the real world distance of the known object.
-    def CalcualteDistance(self, perceivedSize):
+    def CalculateDistance(self, perceivedSize):
         if self.focalLength == None:
             raise ValueError("Did you forget to calibrate this camera and set the perceived focal length?")
         distance = self.knownSize * self.focalLength / float(perceivedSize)

@@ -1,4 +1,5 @@
 import sys
+import math
 import paho.mqtt.client as mqtt
 from WeightedFramerateCounter import WeightedFramerateCounter
 from RealtimeInterval import RealtimeInterval
@@ -11,17 +12,20 @@ import mqttClient
 import json
 import CameraReaderAsync
 
-debugMode = False
+debugMode = True
 
 tuneDistance = False and debugMode
 
 BLUECASE_WIDTH = 14
 BLUECASE_HEIGHT = 10.5
 TESTTAPE_WIDTH = 11.25
-TESTTAPE_HEIGHT = 2
-TARGET_WIDTH = TESTTAPE_WIDTH
-TARGET_HEIGHT = TESTTAPE_HEIGHT
+RETROREFLECTIVE_TAPE_SIZE = 2
+COMPETITION_TARGET_WIDTH = 20
+COMPETITION_TARGET_HEIGHT = 14
+
 TARGET_CALIBRATION_DISTANCE = 67
+TARGET_WIDTH = COMPETITION_TARGET_WIDTH
+TARGET_HEIGHT = COMPETITION_TARGET_HEIGHT
 
 def filterHue(source, hue, hueWidth, low, high):
     MAX_HUE = 179
@@ -62,6 +66,36 @@ def findTarget(raw, params):
         if largestContour != None and cv2.contourArea(largestContour) > params["countourSize"]:
             return largestContour
 
+def distanceSqr(p1, p2 = (0,0)):
+    return (p1[0] - p2[0])**2 + (p1[1] - p2[1])**2
+
+# box is array is array for two values  (x and y)
+def getIndexOfTopLeftCorner(box):
+    ordered = sorted(box, key = distanceSqr)[:1][0]
+    # got the point, but what is its index in the original list?
+    for i in range(len(box)):
+        if box[i][0] == ordered[0] and box[i][1] == ordered[1]:
+            return i
+
+def getboxCenterLine(box, index):
+    topX = box[(index + 0) % 4][0] + ((box[(index + 1) % 4][0] - box[(index + 0) % 4][0]) / 2)
+    topY = box[(index + 0) % 4][1] + ((box[(index + 1) % 4][1] - box[(index + 0) % 4][1]) / 2)
+    botX = box[(index + 3) % 4][0] + ((box[(index + 2) % 4][0] - box[(index + 3) % 4][0]) / 2)
+    botY = box[(index + 3) % 4][1] + ((box[(index + 2) % 4][1] - box[(index + 3) % 4][1]) / 2)
+    return ((topX, topY), (botX, botY))
+
+def getTargetBox(target):
+    minRect = cv2.minAreaRect(target)
+    box = cv2.cv.BoxPoints(minRect)
+    #box = np.int0(box) # convert points to ints
+    return box
+
+def getTargetHeight(box):
+    topLeftIndex = getIndexOfTopLeftCorner(box)
+    centerLine = getboxCenterLine(box, topLeftIndex)
+    boxHeight = math.sqrt(distanceSqr(centerLine[0], centerLine[1]))
+    return boxHeight, centerLine
+
 def main():
     connectThrottle = RealtimeInterval(10)
     MQTT_TOPIC_TARGETTING = "5495.targetting"
@@ -72,7 +106,7 @@ def main():
 
     params = CVParameterGroup("Sliders", debugMode)
     # HUES: GREEEN=65/75 BLUE=110
-    params.addParameter("hue", 68, 179)
+    params.addParameter("hue", 75, 179)
     params.addParameter("hueWidth", 5, 25)
     params.addParameter("low", 70, 255)
     params.addParameter("high", 255, 255)       
@@ -96,14 +130,17 @@ def main():
     # We need to skip the first frame to make sure we don't process bad image data.
     frameSkipped = False;
 
+    raw = cv2.imread('test.png')
+    cv2.imshow("raw", raw);
+
     while (True):
         if (not client.isConnected()) and connectThrottle.hasElapsed():
             try:
-                client.connect()
+                None#client.connect()
             except:
                 None
         
-        raw = cameraReader.Read()
+        #raw = cameraReader.Read()
         if raw != None and frameSkipped:
             fpsCounter.tick()
             
@@ -117,22 +154,24 @@ def main():
                 payload = { 'hasTarget': False, "fps": round(fpsCounter.getFramerate()) }
                 client.publish(MQTT_TOPIC_TARGETTING, json.dumps(payload))
             else:
-                x,y,w,h = cv2.boundingRect(target)
-                center = (x + (w / 2), y + (h / 2))
-                horizontalOffset = center[0] - 320
-
                 distance = None
+
+                targetBox = getTargetBox(target)
+                measuredHeight, centerLine = getTargetHeight(targetBox)
+                center = (round((centerLine[0][0] + centerLine[1][0]) / 2),\
+                          round((centerLine[0][1] + centerLine[1][1]) / 2))
+                horizontalOffset = center[0] - 320
+                
                 perceivedFocalLengthH = perceivedFocalLengthV = 0.0
                 if tuneDistance:
                     perceivedFocalLengthH = distanceCalculatorH.CalculatePerceivedFocalLengthAtGivenDistance(w, TARGET_CALIBRATION_DISTANCE);
                     perceivedFocalLengthV = distanceCalculatorV.CalculatePerceivedFocalLengthAtGivenDistance(h, TARGET_CALIBRATION_DISTANCE);
                     distance = TARGET_CALIBRATION_DISTANCE
                 else:
-                    # Use the largest axis to determine the physical distance
-                    if w > h:
-                        distance = distanceCalculatorH.CalcualteDistance(w);
-                    else:
-                        distance = distanceCalculatorV.CalcualteDistance(h);
+                    # We use the height at the center of the taget to determine distance
+                    # That way we hope it will be less sensitive to off-axis shooting angles
+                    
+                    distance = distanceCalculatorV.CalculateDistance(measuredHeight);
                 distance = round(distance, 1)
 
                 payload = { 'horizDelta': horizontalOffset, 'targetDistance': round(distance), 'hasTarget': True, "fps": round(fpsCounter.getFramerate()) }
@@ -140,9 +179,16 @@ def main():
 
                 if debugMode:
                     result = raw.copy()
-                    cv2.rectangle(result, (x, y), (x + w, y + h), (40, 0, 120), 2)
-                    cv2.circle(result, center, 8, (250, 250, 250), -1)
-                    cv2.putText(result, str(horizontalOffset), (x-50, y+15), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 0, 0), 1)
+
+                    # Draw the centerline that represent the height
+                    cv2.line(result, (int(round(centerLine[0][0])), int(round(centerLine[0][1]))),\
+                                     (int(round(centerLine[1][0])), int(round(centerLine[1][1]))),\
+                                     (128, 0, 255), 1)
+                    
+                    # draw the center of the object
+                    cv2.circle(result, (int(round(center[0])), int(round(center[1]))), 4, (250, 250, 250), -1)
+                    
+                    #cv2.putText(result, str(horizontalOffset), (x-50, y+15), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 0, 0), 1)
                     if tuneDistance:
                         cv2.putText(result, "PFL_H: {:.0f}".format(perceivedFocalLengthH), (3, 13 + 5), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
                         cv2.putText(result, "PFL_V: {:.0f}".format(perceivedFocalLengthV), (3, 13 + 5 + 22), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
@@ -151,6 +197,7 @@ def main():
                     if fpsDisplay:
                         cv2.putText(result, "{:.0f} fps".format(fpsCounter.getFramerate()), (640 - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
                     cv2.imshow("result", result)
+                    raw = None
         if raw != None:
            frameSkipped = True 
         if fpsDisplay and fpsInterval.hasElapsed():
