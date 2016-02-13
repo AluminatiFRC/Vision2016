@@ -88,13 +88,13 @@ def main():
         distanceCalculatorH = DistanceCalculator.TriangleSimilarityDistanceCalculator(TARGET_WIDTH, DistanceCalculator.PFL_H_LC3000)
         distanceCalculatorV = DistanceCalculator.TriangleSimilarityDistanceCalculator(TARGET_HEIGHT, DistanceCalculator.PFL_V_LC3000)
     
-    fpsDisplay = True;
+    fpsDisplay = True
     fpsCounter = WeightedFramerateCounter()
     fpsInterval = RealtimeInterval(5.0, False)
 
     # The first frame we take off of the camera won't have the proper exposure setting
     # We need to skip the first frame to make sure we don't process bad image data.
-    frameSkipped = False;
+    frameSkipped = False
 
     while (True):
         if (not client.isConnected()) and connectThrottle.hasElapsed():
@@ -110,7 +110,7 @@ def main():
             if debugMode:
                 if fpsDisplay:
                     cv2.putText(raw, "{:.0f} fps".format(fpsCounter.getFramerate()), (640 - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
-                cv2.imshow("raw", raw);
+                cv2.imshow("raw", raw)
 
             target = findTarget(raw, params)
             if target == None or not target.any():
@@ -124,15 +124,15 @@ def main():
                 distance = None
                 perceivedFocalLengthH = perceivedFocalLengthV = 0.0
                 if tuneDistance:
-                    perceivedFocalLengthH = distanceCalculatorH.CalculatePerceivedFocalLengthAtGivenDistance(w, TARGET_CALIBRATION_DISTANCE);
-                    perceivedFocalLengthV = distanceCalculatorV.CalculatePerceivedFocalLengthAtGivenDistance(h, TARGET_CALIBRATION_DISTANCE);
+                    perceivedFocalLengthH = distanceCalculatorH.CalculatePerceivedFocalLengthAtGivenDistance(w, TARGET_CALIBRATION_DISTANCE)
+                    perceivedFocalLengthV = distanceCalculatorV.CalculatePerceivedFocalLengthAtGivenDistance(h, TARGET_CALIBRATION_DISTANCE)
                     distance = TARGET_CALIBRATION_DISTANCE
                 else:
                     # Use the largest axis to determine the physical distance
                     if w > h:
-                        distance = distanceCalculatorH.CalcualteDistance(w);
+                        distance = distanceCalculatorH.CalcualteDistance(w)
                     else:
-                        distance = distanceCalculatorV.CalcualteDistance(h);
+                        distance = distanceCalculatorV.CalcualteDistance(h)
                 distance = round(distance, 1)
 
                 payload = { 'horizDelta': horizontalOffset, 'targetDistance': round(distance), 'hasTarget': True, "fps": round(fpsCounter.getFramerate()) }
