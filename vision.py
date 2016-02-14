@@ -28,8 +28,21 @@ TARGET_CALIBRATION_DISTANCE = 67
 TARGET_WIDTH = COMPETITION_TARGET_WIDTH
 TARGET_HEIGHT = COMPETITION_TARGET_HEIGHT
 
+MQTT_TOPIC_TARGETTING = "robot/vision/telemetry"
+MQTT_TOPIC_SCREENSHOT = "robot/vision/screenshot"
+
 cameraFrameWidth = None
 cameraFrameHeight = None
+testImage = None
+
+#if debugMode:
+#    testImage = cv2.imread("./screenshots/target003_simple.png")
+#    cameraFrameHeight, cameraFrameWidth = testImage.shape[:2]
+
+def takeScreenshot():
+    filename = str(time.time()) + ".png"
+    cv2.imwrite(filename, raw)
+    return filename
 
 def filterHue(source, hue, hueWidth, low, high):
     MAX_HUE = 179
@@ -44,9 +57,11 @@ def filterHue(source, hue, hueWidth, low, high):
     return cv2.inRange(hsv, lowFilter, highFilter)
 
 def messageHandler(message):
-    sys.stdout.write(".")
+    #sys.stdout.write(".")
     #print message.topic
     #print message.payload
+    if message.topic == MQTT_TOPIC_SCREENSHOT:
+        filename = takeScreenshot()        
 
 def createCamera():
     global cameraFrameWidth
@@ -78,10 +93,10 @@ def findTarget(raw, params):
 def distanceSqr(p1, p2 = (0,0)):
     return (p1[0] - p2[0])**2 + (p1[1] - p2[1])**2
 
-# box is array is array for two values  (x and y)
+# box is an array of two arrays each with two values (x and y)
 def getIndexOfTopLeftCorner(box):
     ordered = sorted(box, key = distanceSqr)[:1][0]
-    # got the point, but what is its index in the original list?
+    # got the point, but now get its index in the original list
     for i in range(len(box)):
         if box[i][0] == ordered[0] and box[i][1] == ordered[1]:
             return i
@@ -99,6 +114,38 @@ def getTargetBox(target):
     #box = np.int0(box) # convert points to ints
     return box
 
+def getTargetBoxTight(target):
+    # Turn (array of array of array) into (array of array)
+    target = target.reshape([-1,2])
+
+    anchors = [\
+        (0, 0),\
+        (cameraFrameWidth, 0),\
+        (cameraFrameWidth, cameraFrameHeight),\
+        (0, cameraFrameHeight)]
+
+    # Take the first point and use it as our best guess on all four corners
+    candidates = [\
+        {'p':target[0], 'd':distanceSqr(target[0], anchors[0])},\
+        {'p':target[0], 'd':distanceSqr(target[0], anchors[1])},\
+        {'p':target[0], 'd':distanceSqr(target[0], anchors[2])},\
+        {'p':target[0], 'd':distanceSqr(target[0], anchors[3])}]
+
+    for point in target:
+        for i in range(4):
+            distance = distanceSqr(anchors[i], point)
+            if distance < candidates[i]['d']:
+                candidates[i]['p'] = point
+                candidates[i]['d'] = distance
+    box = (tuple(candidates[0]['p']),\
+           tuple(candidates[1]['p']),\
+           tuple(candidates[2]['p']),\
+           tuple(candidates[3]['p']))
+
+    #print box
+    #print getTargetBox(target)
+    return box
+
 def getTargetHeight(box):
     topLeftIndex = getIndexOfTopLeftCorner(box)
     centerLine = getboxCenterLine(box, topLeftIndex)
@@ -107,23 +154,24 @@ def getTargetHeight(box):
 
 def main():
     connectThrottle = RealtimeInterval(10)
-    MQTT_TOPIC_TARGETTING = "5495.targetting"
     host = "roboRIO-5495-FRC.local"
     port = 5888
-    topics = ()
+    topics = (MQTT_TOPIC_SCREENSHOT)
     client = mqttClient.MqttClient(host, port, topics, messageHandler)
 
     params = CVParameterGroup("Sliders", debugMode)
     # HUES: GREEEN=65/75 BLUE=110
     params.addParameter("hue", 75, 179)
-    params.addParameter("hueWidth", 5, 25)
+    params.addParameter("hueWidth", 20, 25)
     params.addParameter("low", 70, 255)
     params.addParameter("high", 255, 255)       
     params.addParameter("countourSize", 50, 200)
     params.addParameter("keystone", 0, 320)
 
-    camera = createCamera()
-    cameraReader = CameraReaderAsync.CameraReaderAsync(camera)
+    camera = cameraReader = None
+    if testImage is None:
+        camera = createCamera()
+        cameraReader = CameraReaderAsync.CameraReaderAsync(camera)
     distanceCalculatorH = distanceCalculatorV  = None
     if tuneDistance:
         distanceCalculatorH = DistanceCalculator.TriangleSimilarityDistanceCalculator(TARGET_WIDTH)
@@ -155,7 +203,10 @@ def main():
         #if raw == None or len(raw) == 0:
         #    print "Can't load image"
         #    break
-        raw = cameraReader.Read()
+        if testImage is not None:
+            raw = testImage.copy()
+        elif cameraReader is not None:
+            raw = cameraReader.Read()
         if raw != None and frameSkipped:
             fpsCounter.tick()
             
@@ -165,11 +216,11 @@ def main():
                 cv2.imshow("raw", raw)
 
             # This will "deskew" or fix the keystone of a tilted camera.
-            #ptSrc = np.float32([keyStoneBoxSource]);
+            #ptSrc = np.float32([keyStoneBoxSource])
             #ptDst = np.float32([[params['keystone'], 0],\
             #                    [cameraFrameWidth - params['keystone'], 0],\
             #                    [cameraFrameWidth + params['keystone'], cameraFrameHeight],\
-            #                    [-params['keystone'], cameraFrameHeight]]);
+            #                    [-params['keystone'], cameraFrameHeight]])
             #matrix = cv2.getPerspectiveTransform(ptSrc, ptDst)
             #transformed = cv2.warpPerspective(raw, matrix, (cameraFrameWidth, cameraFrameHeight))
             #cv2.imshow("keystone", transformed)
@@ -182,7 +233,13 @@ def main():
             else:
                 distance = None
 
-                targetBox = getTargetBox(target)
+                targetBox = getTargetBoxTight(target)
+                # We can tell how off-axis we are by looking at the slope
+                # of the top off the targetBox. If we are on-center they will
+                # be even. If we are off axis they will be unequal.
+                # We are to the right of the target if the line slopes up to the right
+                # and the slope is positive.
+                offAxis = (targetBox[0][1] - targetBox[1][1]) / (cameraFrameHeight / 10.0)
                 measuredHeight, centerLine = getTargetHeight(targetBox)
                 center = (round((centerLine[0][0] + centerLine[1][0]) / 2),\
                           round((centerLine[0][1] + centerLine[1][1]) / 2))
@@ -197,15 +254,39 @@ def main():
                     # We use the height at the center of the taget to determine distance
                     # That way we hope it will be less sensitive to off-axis shooting angles
                     
-                    distance = distanceCalculatorV.CalculateDistance(measuredHeight);
+                    distance = distanceCalculatorV.CalculateDistance(measuredHeight)
                 distance = round(distance, 1)
 
                 horizDelta = horizontalOffset / cameraFrameWidth * 2
-                payload = { 'horizDelta': horizDelta, 'targetDistance': round(distance), 'hasTarget': True, "fps": round(fpsCounter.getFramerate()) }
+                payload = {\
+                    'horizDelta': horizDelta,\
+                    'targetDistance': round(distance),\
+                    'hasTarget': True,\
+                    "fps": round(fpsCounter.getFramerate()),\
+                    "offAxis": offAxis}
                 client.publish(MQTT_TOPIC_TARGETTING, json.dumps(payload))
 
                 if debugMode:
                     result = raw.copy()
+
+                    # Draw the actual contours
+                    #cv2.drawContours(result, target, -1, (255, 255, 255), 1)
+
+                    # Draw the bounding area (targetBox)
+                    cv2.drawContours(result, [np.int0(targetBox)], -1, (255, 0, 0), 1)
+
+                    # Draw Convex Hull
+                    #hull = cv2.convexHull(target)
+                    #cv2.drawContours(result, hull, -1, (255, 0, 255), 1)
+                    #temp = []
+                    #for c in target:
+                    #    contour = [c][0][0]
+                    #    temp.append(contour)
+                    #    #print contour
+                    ##print temp
+                    #top = getIndexOfTopLeftCorner(temp)
+                    ##print target[top][0]
+                    #cv2.circle(result, (target[top][0][0], target[top][0][1]), 3, (255, 255, 255), -1)
 
                     # Draw the centerline that represent the height
                     cv2.line(result, (int(round(centerLine[0][0])), int(round(centerLine[0][1]))),\
@@ -222,32 +303,32 @@ def main():
                     else:
                         cv2.putText(result, "{} inches".format(distance), (3, 13 + 5), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
                     if fpsDisplay:
-                        cv2.putText(result, "{:.0f} fps".format(fpsCounter.getFramerate()), (640 - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
+                        cv2.putText(result, "{:.0f} fps".format(fpsCounter.getFramerate()), (cameraFrameWidth - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
                     cv2.imshow("result", result)
 
         if raw != None:
             frameSkipped = True
         if fpsDisplay and fpsInterval.hasElapsed():
             print "{0:.1f} fps (processing)".format(fpsCounter.getFramerate())
-            print "{0:.1f} fps (camera)".format(cameraReader.fps.getFramerate())
+            if cameraReader is not None:
+                print "{0:.1f} fps (camera)".format(cameraReader.fps.getFramerate())
     
         if debugMode:
             keyPress = cv2.waitKey(1)
             if keyPress != -1:
                 keyPress = keyPress & 0xFF
-
             if keyPress == ord("f"):
                 fpsDisplay = not fpsDisplay
             elif keyPress == ord("q"):
                 break 
             elif keyPress == ord("z"):
-                filename = str(time.time()) + ".png"
-                cv2.imwrite(filename, raw)
-                print "Took screenshot " + filename
+                takeScreenshot()
 
     client.disconnect()
-    cameraReader.Stop()
-    camera.release()
+    if cameraReader is not None:
+        cameraReader.Stop()
+    if camera is not None:
+        camera.release()
     cv2.destroyAllWindows()
 
 parser = argparse.ArgumentParser(description="Vision-based targetting system for FRC 2016")
