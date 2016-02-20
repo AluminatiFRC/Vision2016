@@ -1,19 +1,20 @@
-import sys
+import argparse
+import cv2
+import json
 import math
+import mqttClient
+import numpy as np
+import sys
+import time
 import paho.mqtt.client as mqtt
+
 from WeightedFramerateCounter import WeightedFramerateCounter
 from RealtimeInterval import RealtimeInterval
 from CVParameterGroup import CVParameterGroup
 import TriangleSimilarityDistanceCalculator as DistanceCalculator
-import numpy as np
-import cv2
-import time
-import mqttClient
-import json
 import CameraReaderAsync
 
 debugMode = True
-
 tuneDistance = False and debugMode
 
 BLUECASE_WIDTH = 14
@@ -51,7 +52,7 @@ def createCamera():
     
     camera = cv2.VideoCapture(0)
     #No camera's exposure goes this low, but this will set it as low as possible
-    camera.set(cv2.cv.CV_CAP_PROP_EXPOSURE,-100)    
+    #camera.set(cv2.cv.CV_CAP_PROP_EXPOSURE,-100)    
     #camera.set(cv2.cv.CV_CAP_PROP_FPS, 15)
     #camera.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 640)
     cameraFrameWidth = camera.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
@@ -127,13 +128,13 @@ def main():
         distanceCalculatorH = DistanceCalculator.TriangleSimilarityDistanceCalculator(TARGET_WIDTH, DistanceCalculator.PFL_H_LC3000)
         distanceCalculatorV = DistanceCalculator.TriangleSimilarityDistanceCalculator(TARGET_HEIGHT, DistanceCalculator.PFL_V_LC3000)
     
-    fpsDisplay = False;
+    fpsDisplay = True
     fpsCounter = WeightedFramerateCounter()
-    fpsInterval = RealtimeInterval(5.0)
+    fpsInterval = RealtimeInterval(5.0, False)
 
     # The first frame we take off of the camera won't have the proper exposure setting
     # We need to skip the first frame to make sure we don't process bad image data.
-    frameSkipped = False;
+    frameSkipped = False
 
     #raw = cv2.imread('test.png')
     #cv2.imshow("raw", raw);
@@ -152,7 +153,7 @@ def main():
             if debugMode:
                 if fpsDisplay:
                     cv2.putText(raw, "{:.0f} fps".format(fpsCounter.getFramerate()), (640 - 100, 13 + 6), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255,255,255), 1)
-                cv2.imshow("raw", raw);
+                cv2.imshow("raw", raw)
 
             target = findTarget(raw, params)
             if target == None or not target.any():
@@ -169,8 +170,8 @@ def main():
                 
                 perceivedFocalLengthH = perceivedFocalLengthV = 0.0
                 if tuneDistance:
-                    perceivedFocalLengthH = distanceCalculatorH.CalculatePerceivedFocalLengthAtGivenDistance(w, TARGET_CALIBRATION_DISTANCE);
-                    perceivedFocalLengthV = distanceCalculatorV.CalculatePerceivedFocalLengthAtGivenDistance(h, TARGET_CALIBRATION_DISTANCE);
+                    perceivedFocalLengthH = distanceCalculatorH.CalculatePerceivedFocalLengthAtGivenDistance(w, TARGET_CALIBRATION_DISTANCE)
+                    perceivedFocalLengthV = distanceCalculatorV.CalculatePerceivedFocalLengthAtGivenDistance(h, TARGET_CALIBRATION_DISTANCE)
                     distance = TARGET_CALIBRATION_DISTANCE
                 else:
                     # We use the height at the center of the taget to determine distance
@@ -207,11 +208,14 @@ def main():
         if raw != None:
             frameSkipped = True
         if fpsDisplay and fpsInterval.hasElapsed():
-            print "{0:.1f} fps".format(fpsCounter.getFramerate())
+            print "{0:.1f} fps (processing)".format(fpsCounter.getFramerate())
+            print "{0:.1f} fps (camera)".format(cameraReader.fps.getFramerate())
     
-        keyPress = cv2.waitKey(1)
-        if keyPress != -1:
-            keyPress = keyPress & 0xFF
+        if debugMode:
+            keyPress = cv2.waitKey(1)
+            if keyPress != -1:
+                keyPress = keyPress & 0xFF
+
             if keyPress == ord("f"):
                 fpsDisplay = not fpsDisplay
             elif keyPress == ord("q"):
@@ -226,4 +230,8 @@ def main():
     camera.release()
     cv2.destroyAllWindows()
 
+parser = argparse.ArgumentParser(description="Vision-based targetting system for FRC 2016")
+parser.add_argument("--release", dest="releaseMode", action="store_const", const=True, default=not debugMode, help="hides all debug windows (default: False)")
+args = parser.parse_args()
+debugMode = not args.releaseMode
 main()
