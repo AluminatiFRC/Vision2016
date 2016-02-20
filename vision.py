@@ -179,7 +179,7 @@ def main():
                     distance = distanceCalculatorV.CalculateDistance(measuredHeight);
                 distance = round(distance, 1)
 
-                horizDelta1 = horizontalOffset / cameraFrameWidth * 2 - 1
+                horizDelta = horizontalOffset / cameraFrameWidth * 2 - 1
                 payload = { 'horizDelta': horizDelta, 'targetDistance': round(distance), 'hasTarget': True, "fps": round(fpsCounter.getFramerate()) }
                 client.publish(MQTT_TOPIC_TARGETTING, json.dumps(payload))
 
